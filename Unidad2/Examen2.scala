@@ -7,7 +7,6 @@ import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.MultilayerPerceptronClassifier
 import org.apache.spark.ml.feature.IndexToString
-
 //lee el dataset y lo transforma en una lista.
 //val jssFile = Source.fromFile("iris.csv").getLines().toList
 //lee el dataset con los nombres de las columnas

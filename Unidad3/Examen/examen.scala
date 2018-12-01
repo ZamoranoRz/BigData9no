@@ -22,8 +22,10 @@ val assembler = new VectorAssembler().setInputCols(Array("Fresh","Milk","Grocery
 //Utilice el objeto assembler para transformar feature_data
 val training = assembler.transform(features_data).select("features")
 //Crea un modelo kmeans con k=3
-val kmeans = new KMeans().setK(8)
+val kmeans = new KMeans().setK(8)setSeed(1L)
 //Evaluar los grupos utilizando WSSSE (Withn set sum of squared errors)
 val model = kmeans.fit(training)
 //Mostrar los resultados
 val WSSSE = model.computeCost(training)
+println("Cluster Centers: ")
+model.clusterCenters.foreach(println)
