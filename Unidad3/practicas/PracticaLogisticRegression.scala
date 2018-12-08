@@ -33,20 +33,25 @@ import org.apache.log4j._
 Logger.getLogger("org").setLevel(Level.ERROR)
 // Cree un sesion Spark
 val spark = SparkSession.builder().getOrCreate()
+
 // Utilice Spark para leer el archivo csv Advertising.
 val data  = spark.read.option("header","true").option("inferSchema", "true").format("csv").load("advertising.csv")
-
 // Imprima el Schema del DataFrame
-data.printSchema()
-
-
+data.printSchema
 ///////////////////////
 /// Despliegue los datos /////
 /////////////////////
-
+data.head(1)
 // Imprima un renglon de ejemplo
-data.show(1)
-
+val colnames = data.columns
+val firstrow = data.head(1)(0)
+println("\n")
+println("Example data row")
+for(ind <- Range(1, colnames.length)){
+    println(colnames(ind))
+    println(firstrow(ind))
+    println("\n")
+}
 ////////////////////////////////////////////////////
 //// Preparar el DataFrame para Machine Learning ////
 //////////////////////////////////////////////////
@@ -55,45 +60,44 @@ data.show(1)
 //    - Renombre la columna "Clicked on Ad" a "label"
 //    - Tome la siguientes columnas como features "Daily Time Spent on Site","Age","Area Income","Daily Internet Usage","Timestamp","Male"
 //    - Cree una nueva clolumna llamada "Hour" del Timestamp conteniendo la  "Hour of the click"
-val data2 = (data.select(data("Clicked on Ad").as("label"), $"Daily Time Spent on Site",
-$"Age", $"Area Income", $"Daily Internet Usage", $"Ad Topic Line", $"City", $"Male", $"Country", $"Timestamp"))
+val data2 = data.withColumn("Hour",hour(data("Timestamp")))
+val logregdata = (data2.select(data2("Clicked on Ad").as("label"), $"Daily Time Spent on Site", $"Age",
+                    $"Area Income", $"Daily Internet Usage", $"Hour", $"Male"))
 
-val df = data2.withColumn("Hour", data2("Timestamp"))
 
 // Importe VectorAssembler y Vectors
 import org.apache.spark.ml.feature.{VectorAssembler, StringIndexer, VectorIndexer, OneHotEncoder}
 import org.apache.spark.ml.linalg.Vectors
 // Cree un nuevo objecto VectorAssembler llamado assembler para los feature
-
-val assembler = (new VectorAssembler()
-                  .setInputCols(Array("Daily Time Spent on Site","Age","Area Income","Daily Internet Usage","Timestamp","Male"))
-                  .setOutputCol("features"))
-
+val assembler = (new VectorAssembler().setInputCols(Array("Daily Time Spent on Site","Age","Area Income","Daily Internet Usage","Hour","Male")).setOutputCol("features"))
 // Utilice randomSplit para crear datos de train y test divididos en 70/30
-
-
+val Array(training, test) = logregdata.randomSplit(Array(0.7, 0.3), seed = 12345)
 ///////////////////////////////
 // Configure un Pipeline ///////
 /////////////////////////////
-
 // Importe  Pipeline
+import org.apache.spark.ml.Pipeline
 // Cree un nuevo objeto de  LogisticRegression llamado lr
-
+val lr = new LogisticRegression()
 // Cree un nuevo  pipeline con los elementos: assembler, lr
-
+val pipeline = new Pipeline().setStages(Array(assembler,lr))
 // Ajuste (fit) el pipeline para el conjunto de training.
-
-
+val model = pipeline.fit(training)
 // Tome los Resultados en el conjuto Test con transform
-
+val results = model.transform(test)
 ////////////////////////////////////
 //// Evaluacion del modelo /////////////
 //////////////////////////////////
 
 // Para Metrics y Evaluation importe MulticlassMetrics
-
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
 // Convierta los resutalos de prueba (test) en RDD utilizando .as y .rdd
-
+val predictionAndLabels = results.select($"prediction",$"label").as[(Double, Double)].rdd
 // Inicialice un objeto MulticlassMetrics
-
+val metrics = new MulticlassMetrics(predictionAndLabels)
 // Imprima la  Confusion matrix
+println("Confusion matrix:")
+println(metrics.confusionMatrix)
+
+metrics.accuracy
+
